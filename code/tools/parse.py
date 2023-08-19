@@ -33,8 +33,8 @@ parser.add_argument(
 
 parser.add_argument(
         '--dataset',
-        default='DACMI',
-        # default='MIMIC',
+        # default='DACMI',
+        default='MIMIC',
         type=str,
         help='dataset')
 
@@ -45,7 +45,7 @@ parser.add_argument(
         help='at most n codes for same visit')
 parser.add_argument(
         '--n-visit',
-        default=30,
+        default=100,
         type=int,
         help='at most input n visits')
 parser.add_argument(

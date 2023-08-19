@@ -98,61 +98,10 @@ def train_eval(data_loader, net, loss, epoch, optimizer, best_metric, phase='tra
     for b, data_list in enumerate(tqdm(data_loader)):
         data, label, mask, files = data_list[:4]
         data = index_value(data)
-        if args.model == 'tame':
-            pre_input, pre_time, post_input, post_time, dd_list = data_list [4:9]
-            pre_input = index_value(pre_input)
-            post_input = index_value(post_input)
-            pre_time = Variable(_cuda(pre_time))
-            post_time = Variable(_cuda(post_time))
-            dd_list = Variable(_cuda(dd_list))
-            neib = [pre_input, pre_time, post_input, post_time]
 
         label = Variable(_cuda(label)) # [bs, 1]
         mask = Variable(_cuda(mask)) # [bs, 1]
-        if args.dataset in ['MIMIC'] and args.model == 'tame' and args.use_mm:
-            output = net(data, neib=neib, dd=dd_list, mask=mask) # [bs, 1]
-        elif args.model == 'tame' and args.use_ta:
-            output = net(data, neib=neib, mask=mask) # [bs, 1]
-        else:
-            output = net(data, mask=mask) # [bs, 1]
-
-        if phase == 'test':
-            folder = os.path.join(args.result_dir, args.dataset, 'imputation_result')
-            output_data = output.data.cpu().numpy()
-            mask_data = mask.data.cpu().numpy().max(2)
-            for (icu_data, icu_mask, icu_file) in zip(output_data, mask_data, files):
-                icu_file = os.path.join(folder, icu_file.split('/')[-1].replace('.csv', '.npy'))
-                np.save(icu_file, icu_data)
-                if args.dataset == 'MIMIC':
-                    with open(os.path.join(args.data_dir, args.dataset, 'train_groundtruth', icu_file.split('/')[-1].replace('.npy', '.csv'))) as f:
-                        init_data = f.read().strip().split('\n')
-                    # print(icu_file)
-                    wf = open(icu_file.replace('.npy', '.csv'), 'w')
-                    wf.write(init_data[0] + '\n')
-                    item_list = init_data[0].strip().split(',')
-                    if len(init_data) <= args.n_visit:
-                        try:
-                            assert len(init_data) == (icu_mask >= 0).sum() + 1
-                        except:
-                            pass
-                            # print(len(init_data))
-                            # print(sum(icu_mask >= 0))
-                            # print(icu_file)
-                    for init_line, out_line in zip(init_data[1:], icu_data):
-                        init_line = init_line.strip().split(',')
-                        new_line = [init_line[0]]
-                        # assert len(init_line) == len(out_line) + 1
-                        for item, iv, ov in zip(item_list[1:], init_line[1:], out_line):
-                            if iv.strip() not in ['', 'NA']:
-                                new_line.append('{:4.4f}'.format(float(iv.strip())))
-                            else:
-                                minv, maxv = feature_mm_dict[item]
-                                ov = ov * (maxv - minv) + minv
-                                new_line.append('{:4.4f}'.format(ov))
-                        new_line = ','.join(new_line)
-                        wf.write(new_line + '\n')
-                    wf.close()
-
+        output = net(data, mask=mask) # [bs, 1]
 
         loss_output = loss(output, label, mask)
         pred_list.append(output.data.cpu().numpy())
@@ -180,7 +129,7 @@ def train_eval(data_loader, net, loss, epoch, optimizer, best_metric, phase='tra
     metric = metric_list[0]
     if phase == 'valid' and (best_metric[0] == 0 or best_metric[0] > metric):
         best_metric = [metric, epoch]
-        function.save_model({'args': args, 'model': net, 'epoch':epoch, 'best_metric': best_metric})
+        function.save_model({'args': args, 'model': net, 'epoch':epoch, 'best_metric': best_metric}, name='imputation.ckpt')
     metric_list = metric_list[2:]
     name_list = args.name_list
     assert len(metric_list) == len(name_list) * 2

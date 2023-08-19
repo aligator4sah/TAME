@@ -7,6 +7,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 import os
+import traceback
 import sys
 import time
 import numpy as np
@@ -84,7 +85,6 @@ def index_value(data):
     return [index, value]
 
 def train_eval(data_loader, net, loss, epoch, optimizer, best_metric, phase='train'):
-    print(phase)
     lr = get_lr(epoch)
     if phase == 'train':
         net.train()
@@ -194,71 +194,110 @@ def train_eval(data_loader, net, loss, epoch, optimizer, best_metric, phase='tra
         print(s)
     return best_metric
 
+class Inference(object):
+    def __init__(self):
 
-def main():
+        args.name_list = py_op.myreadjson(os.path.join(args.file_dir, args.dataset+'_feature_list.json'))[1:]
+        args.output_size = len(args.name_list)
+        test_files = sorted(glob(os.path.join(args.data_dir, args.dataset, 'train_with_missing/*.csv')))
+        if args.phase == 'test':
+            train_phase, valid_phase, test_phase, train_shuffle = 'test', 'test', 'test', False
+        else:
+            train_phase, valid_phase, test_phase, train_shuffle = 'train', 'valid', 'test', True
+        test_dataset = data_loader.DataBowl(args, test_files, phase=test_phase)
+        # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
+        args.vocab_size = (args.output_size + 2) * (1 + args.split_num) + 5
 
-    assert args.dataset in ['DACMI', 'MIMIC']
-    if args.dataset == 'MIMIC':
-        args.n_ehr = len(py_op.myreadjson(os.path.join(args.data_dir, args.dataset, 'ehr_list.json')))
-    args.name_list = py_op.myreadjson(os.path.join(args.file_dir, args.dataset+'_feature_list.json'))[1:]
-    args.output_size = len(args.name_list)
-    files = sorted(glob(os.path.join(args.data_dir, args.dataset, 'train_with_missing/*.csv')))
-    data_splits = py_op.myreadjson(os.path.join(args.file_dir, args.dataset + '_splits.json'))
-    train_files = [f for idx in [0, 1, 2, 3, 4, 5, 6] for f in data_splits[idx]]
-    valid_files = [f for idx in [7] for f in data_splits[idx]]
-    test_files = [f for idx in [8, 9] for f in data_splits[idx]]
-    if args.phase == 'test':
-        train_phase, valid_phase, test_phase, train_shuffle = 'test', 'test', 'test', False
-    else:
-        train_phase, valid_phase, test_phase, train_shuffle = 'train', 'valid', 'test', True
-    train_dataset = data_loader.DataBowl(args, train_files, phase=train_phase)
-    valid_dataset = data_loader.DataBowl(args, valid_files, phase=valid_phase)
-    test_dataset = data_loader.DataBowl(args, test_files, phase=test_phase)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=train_shuffle, num_workers=args.workers, pin_memory=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=True)
-    args.vocab_size = (args.output_size + 2) * (1 + args.split_num) + 5
+        imputation_net = tame.AutoEncoder(args)
+        prediction_net = tame.Classification(args)
 
-    if args.model == 'tame':
-        net = tame.AutoEncoder(args)
-    loss = myloss.MSELoss(args)
+    
+        imputation_net = _cuda(imputation_net, 0)
+        prediction_net = _cuda(prediction_net, 0)
 
-    net = _cuda(net, 0)
-    loss = _cuda(loss, 0)
+        state_dict = torch.load('../../data/MIMIC/models/prediction.ckpt')
+        prediction_net.load_state_dict(state_dict['state_dict'])
 
-    net = DataParallel(net)
-    # loss = DataParallel(loss)
+        # self.test_loader = test_loader
+        self.test_dataset = test_dataset
+        self.imputation_net = imputation_net
+        self.prediction_net = prediction_net
 
-    best_metric= [0,0]
-    start_epoch = 0
 
-    if args.resume:
-        p_dict = {'model': net}
-        function.load_model(p_dict, args.resume)
-        best_metric = p_dict['best_metric']
-        start_epoch = p_dict['epoch'] + 1
 
-    parameters_all = []
-    for p in net.parameters():
-        parameters_all.append(p)
+    def inference(self,id, ct):
+        '''
+        input:
+            id: patient id
+            ct: 预测时间
+        output:
+            risk:list
+                time: 时间
+                risk: sepsis 概率
+        '''
+        imputation_net = self.imputation_net
+        prediction_net = self.prediction_net
+        dataset = self.test_dataset
 
-    optimizer = torch.optim.Adam(parameters_all, args.lr)
+        data_list = list(dataset.get_input(id, ct))
+        for i, x in enumerate(data_list):
+            try:
+                data_list[i] = torch.unsqueeze(x, 0)
+            except:
+                # traceback.print_exc()
+                pass
 
-    if args.phase == 'train':
-        for epoch in range(start_epoch, args.epochs):
-            print('start epoch :', epoch)
-            train_eval(train_loader, net, loss, epoch, optimizer, best_metric)
-            best_metric = train_eval(valid_loader, net, loss, epoch, optimizer, best_metric, phase='valid')
-        print 'best metric', best_metric
+        data, imputation_label, mask, files = data_list[:4]
+        current_time = data_list[-2]
+        data = index_value(data)
+        sepsis_label = data_list[-1]
+        mask = Variable(_cuda(mask)) # [bs, 1]
 
-    elif args.phase == 'test':
-        folder = os.path.join(args.result_dir, args.dataset, 'imputation_result')
-        os.system('rm -r ' + folder)
-        os.system('mkdir ' + folder)
+        imputation_output = imputation_net(data, mask=mask) # [bs, 1]
+        prediction_output = prediction_net(data, mask=mask)
 
-        train_eval(train_loader, net, loss, 0, optimizer, best_metric, 'test')
-        train_eval(valid_loader, net, loss, 0, optimizer, best_metric, 'test')
-        train_eval(test_loader, net, loss, 0, optimizer, best_metric, 'test')
+        risk_list = []
+        for t, risk in zip(current_time.data.numpy()[0], prediction_output[0].cpu().data.numpy()):
+            risk_list.append({
+                'time': int(t),
+                'risk': risk[0]
+                })
+        print('示例输出')
+        print(risk_list)
+        return risk_list
+
+    def sample_uncertainty(self, id, ct, feat_list=[]):
+        '''
+        input:
+            id: patient id, 可取值 0 - 10
+            ct: 预测时间
+            feat_list: 需要sample的lab test列表
+        output:
+            uncertainty: 不确定性
+        '''
+        imputation_net = self.imputation_net
+        prediction_net = self.prediction_net
+        dataset = self.test_dataset
+
+        data_list = list(dataset.sample_input(id, ct, feat_list))
+
+        data, mask, current_time = data_list
+        data = index_value(data)
+        mask = Variable(_cuda(mask)) # [bs, 1]
+
+        prediction_output = prediction_net(data, mask=mask)
+
+        uncertainty = prediction_output.cpu().data.numpy()[0].std()
+        print('示例输出，不确定性')
+        print(uncertainty)
+        return uncertainty
+
+
 
 if __name__ == '__main__':
-    main()
+    infer = Inference()
+    id = 0
+    ctime = 11
+    infer.inference(id, ctime)
+    infer.sample_uncertainty(id, ctime)
+    infer.sample_uncertainty(id, ctime, ['wbc', 'gcs_min'])

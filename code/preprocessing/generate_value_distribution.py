@@ -3,8 +3,6 @@
 
 
 import sys
-reload(sys)
-sys.setdefaultencoding('utf8')
 
 import os
 import sys
@@ -21,6 +19,44 @@ from tqdm import tqdm
 sys.path.append('../tools')
 import parse, py_op
 args = parse.args
+
+def analyse_visit_length():
+    files = sorted(glob(os.path.join(args.data_dir, args.dataset, 'train_groundtruth/*')))
+    n_list = []
+    for ifi, fi in enumerate(tqdm(files)):
+        if 'csv' not in fi:
+            continue
+        with open(fi) as f:
+            s = f.read()
+        n_list.append(len(s.split('\n')))
+    print('Mean: ', np.mean(n_list), np.std(n_list))
+    n_list = sorted(n_list)
+    for i in range(0, len(n_list), int(len(n_list)/9)):
+        print(n_list[i])
+
+def analyse_totally_missing_rate():
+    files = sorted(glob(os.path.join(args.data_dir, args.dataset, 'train_groundtruth/*')))
+    vis_list = []
+    for ifi, fi in enumerate(tqdm(files)):
+        if 'csv' not in fi:
+            continue
+        for i_line, line in enumerate(open(fi)):
+            if i_line == 0:
+                head = line.strip().split(',')
+                vis = np.ones(len(head))
+            else:
+                data = line.strip().split(',')
+                for i,v in enumerate(data):
+                    if v!='NA' and len(v.strip()) > 0:
+                        vis[i] = 0
+        vis_list.append(vis)
+    vis = np.array(vis_list).mean(0)
+    assert len(vis) == len(head)
+    for h,v in zip(head, vis):
+        print(h, v)
+
+
+
 
 def generate_feature_mm_dict():
     files = sorted(glob(os.path.join(args.data_dir, args.dataset, 'train_groundtruth/*')))
@@ -78,8 +114,10 @@ def split_data_to_ten_set():
 
 
 def main():
-    generate_feature_mm_dict()
-    split_data_to_ten_set()
+    # generate_feature_mm_dict()
+    # split_data_to_ten_set()
+    # analyse_visit_length()
+    analyse_totally_missing_rate()
 
 if __name__ == '__main__':
     main()
