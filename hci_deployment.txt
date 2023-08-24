@@ -1,0 +1,85 @@
+s3://test-aws-tame-us-east-1/active_sensing.small.zip
+
+https://test-aws-tame-us-east-1.s3.amazonaws.com/active_sensing.small.zip
+
+aws s3 cp s3://test-aws-tame-us-east-1/active_sensing.small.zip
+
+wget https://test-aws-tame-us-east-1.s3.amazonaws.com/active_sensing.small.zip
+
+aws s3 sync s3://my-bucket/datasets/ .
+
+aws s3 sync s3://test-aws-tame-us-east-1/data/ .
+
+sudo apt-get install unzip
+
+unzip archive.zip
+
+unzip file.zip -d destination_folder
+
+tar cvf file.tar *.txt 
+
+tar -czvf MIMIC.tar.gz MIMIC
+
+
+ssh -i "tame-test-key.pem" ubuntu@ec2-52-90-169-18.compute-1.amazonaws.com
+
+scp -i "tame-test-key.pem" file.zip ubuntu@34.204.101.176:/home/ubuntu/active-sensor/TAME
+
+scp -i "tame-test-key.pem" data.tar.gz ubuntu@34.207.155.185:/home/ubuntu/active-sensor/TAME
+
+scp -i "tame-test-key.pem" MIMIC.zip ubuntu@34.207.155.185:/home/ubuntu/active-sensor/TAME/data
+
+scp -i "tame-test-key.pem" MIMICC.zip ubuntu@34.207.155.185:/home/ubuntu/active-sensor/TAME/data
+
+scp -i "tame-test-key.pem" requirements_min.txt ubuntu@34.207.155.185:/home/ubuntu/active-sensor/TAME
+
+scp -i "tame-test-key.pem" flaskapp.wsgi ubuntu@34.207.155.185:/home/ubuntu/flask_demo
+
+scp -i "tame-test-key.pem" ubuntu@34.207.155.185:/home/ubuntu/active-sensor/TAME/data/MIMIC.tar ./
+
+
+https://test-aws-tame-us-east-1.s3.amazonaws.com/data/
+
+Connect to server by AWS CLI
+	chmod 400 tame-test-key.pem
+	ssh -i "tame-test-key.pem" ubuntu@ec2-54-210-51-220.compute-1.amazonaws.com
+
+Update existing packages
+	sudo apt-get update
+
+	sudo apt-get upgrade
+	sudo apt install python2
+
+Install required packages
+	sudo apt-get install python2 virtualenv
+	curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+	python2 get-pip.py
+	pip --version
+	python2 -m pip install virtualenv
+	virtualenv --python=python2.7 tametest 
+
+
+Clone the repo
+	git clone https://github.com/aligator4sah/TAME.git
+
+Create virtual env
+	
+	source venv/bin/activate
+
+	-- python2 -m pip install future==0.18.2
+
+	python2 -m pip install -r requirements_min.txt
+
+
+
+	sudo python2 -m pip install flask
+	python2 -m pip install mod_wsgi
+
+	virtualenv --python=python2.7 venv
+	
+sudo ln -sT ~/flask_demo /var/www/html/flask_demo
+
+echo "Hello World, HTML" > index.html
+
+	s3 = boto3.client('s3', region_name='YOUR_REGION', aws_access_key_id='YOUR_ACCESS_KEY', aws_secret_access_key='YOUR_SECRET_KEY')
+
