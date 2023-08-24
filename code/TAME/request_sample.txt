@@ -1,0 +1,15 @@
+curl 'http://127.0.0.1:5000/inference?pid=0&ctime=11'
+
+curl -X POST 'http://127.0.0.1:5000/uncertainty' -H 'Content-Type: application/json' -d '{
+    "pid": "0",
+    "ctime":"11",
+    "feat_list": ["wbc", "gcs_min"]
+}'
+
+curl -X POST 'http://127.0.0.1:5000/uncertainty' -H 'Content-Type: application/json' -d '{
+    "pid": "0",
+    "ctime":"11"
+}'
+
+// production
+curl 'http://ec2-54-146-79-188.compute-1.amazonaws.com:5000/inference?pid=0&ctime=11'
